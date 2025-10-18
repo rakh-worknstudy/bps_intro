@@ -55,7 +55,7 @@ int push_next_to_node(struct node *this, const struct node *next);
 /// Если this.child != NULL, добавляет в конец this.child.next.
 /// Данная функция создает копию значений child, а
 /// не записывает его адрес в this.
-int push_child_to_node(struct node *this, const struct node *child):
+int push_child_to_node(struct node *this, const struct node *child);
 
 #endif  // NODE_H__
 

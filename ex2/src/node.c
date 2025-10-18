@@ -2,7 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.>
+#include <string.h>
 
 /// @brief Вспомогательная функция инициализации строки char *dst
 /// по переданной строке char *src и максимальному размеру lmax.
@@ -16,7 +16,7 @@ static inline char *init_str_from_str(const char *src, const size_t lmax) {
 	size_t len;
 
 	if (NULL != src) {
-		len = strnlen(from, lmax);
+		len = strnlen(src, lmax);
 	} else {
 		perror("Warning: init_str_from_str(): src is NULL");
 		len = 0;	
@@ -28,7 +28,7 @@ static inline char *init_str_from_str(const char *src, const size_t lmax) {
 		return NULL;
 	}
 	
-	if (NULL != from) {
+	if (NULL != src) {
 		strncpy(dst, src, len);
 	}
 	dst[len] = '\0';
@@ -40,7 +40,7 @@ static inline char *init_str_from_str(const char *src, const size_t lmax) {
 /// @note src.next == NULL не является обязательным, но предполагается.
 /// Скидывает предупреждение в stderr.
 /// @return Указатель на атрибут при успехе, иначе - NULL
-static attr *init_attr_from_attr(const struct attr *src) {
+static struct attr *init_attr_from_attr(const struct attr *src) {
 	if (NULL == src) {
 		perror("ERROR: init_attr_from_attr(): src is NULL");
 		return NULL;
@@ -53,20 +53,21 @@ static attr *init_attr_from_attr(const struct attr *src) {
 	}
 
 	do {
-		if (NULL == (dst.name = init_str_from_str(src.name, ATTR_NAME_LENGTH_MAX))) {
+		if (NULL == (dst->name = init_str_from_str(src->name, ATTR_NAME_LENGTH_MAX))) {
 			perror("ERROR: init_attr_from_attr(): Failed to init a name");
 			break;
 		}
-		if (NULL == (dst.value = init_str_from_str(src.value, ATTR_VALUE_LENGTH_MAX))) {
+		if (NULL == (dst->value = init_str_from_str(src->value, ATTR_VALUE_LENGTH_MAX))) {
 			perror("ERROR: init_str_from_str(): Failed to init a value");
 			break;
 		}
-		if (NULL != src.next) {
+		if (NULL != src->next) {
 			perror("Warning: init_str_from_str(): next is NOT NULL");
 		}
-		dst.next = src.next;
+		dst->next = src->next;
+
 		return dst;
-	} while(false);
+	} while(0);
 
 	// On break (fail)
 	free_attr(dst);
@@ -78,7 +79,7 @@ static attr *init_attr_from_attr(const struct attr *src) {
 /// @note src.next == NULL и src.child == NULL  не являются обязательным,
 /// но предполагаются. Скидывает предупреждение в stderr.
 /// @return Указатель на узел при успехе, иначе - NULL
-static attr *init_node_from_node(const struct node *src) {
+static struct node *init_node_from_node(const struct node *src) {
 	if (NULL == src) {
 		perror("ERROR: init_node_from_node(): src is NULL");
 		return NULL;
@@ -92,39 +93,39 @@ static attr *init_node_from_node(const struct node *src) {
 
 	do {
 		// Node's name
-		if (NULL == (dst.name = init_str_from_str(src.name, NODE_NAME_LENGTH_MAX))) {
+		if (NULL == (dst->name = init_str_from_str(src->name, NODE_NAME_LENGTH_MAX))) {
 			perror("ERROR: init_node_from_node(): Failed to init a name");
 			break;
 		}
 		// Node's attributes
-		if (NULL != src.attr) {
-			if (NULL == (dst.attr = init_attr_from_attr(src.attr))) {
+		if (NULL != src->attr) {
+			if (NULL == (dst->attr = init_attr_from_attr(src->attr))) {
 				perror("ERROR: init_node_from_node(): Failed to init attribues");
 				break;
 			}
 		} else {
-			dst.attr = NULL;
+			dst->attr = NULL;
 		}
 		// Node's next
-		if (NULL != src.next) {
+		if (NULL != src->next) {
 			perror("Warning: init_node_from_node(): src.next is NOT NULL");
-			if (NULL == (dst.next = init_node_from_node(src.next))) {
+			if (NULL == (dst->next = init_node_from_node(src->next))) {
 				perror("ERROR: init_node_from_node(): Failed to init next");
 			}
 		} else {
-			dst.next = NULL;
+			dst->next = NULL;
 		}
 		// Node's children
-		if (NULL != src.child) {
+		if (NULL != src->child) {
 			perror("Warning: init_node_from_node(): src.child is NOT NULL");
-			if (NULL == (dst.child = init_node_from_node(src.child))) {
+			if (NULL == (dst->child = init_node_from_node(src->child))) {
 				perror("ERROR: init_node_from_node(): Failed to init child");
 			}
 		} else {
-			dst.child = NULL;
+			dst->child = NULL;
 		}
 		return dst;
-	} while(false);
+	} while(0);
 
 	// On break (fail)
 	free_node(dst);
@@ -133,23 +134,22 @@ static attr *init_node_from_node(const struct node *src) {
 
 /// @brief Функция инициализации (head) листа.
 struct node *init_list(void) {
-	struct node *_head = (struct node *)malloc(sizeof(struct node));
+	struct node *head = (struct node *)malloc(sizeof(struct node));
 	if (NULL == head) {
 		perror("ERROR: init_list(): Failed to init a list");
 		return NULL;
 	}
 
-	head.name = NULL;
-	head.attr = NULL;
-	head.next = NULL;
-	head.child = NULL;
+	head->name = NULL;
+	head->attr = NULL;
+	head->next = NULL;
+	head->child = NULL;
 	return head;
 }
 
-_
 
 int free_list(struct node *head) {
-	if (NULL == _head) {
+	if (NULL == head) {
 		perror("ERROR: delete_list(): head is NULL");
 		return -1;
 	}
@@ -157,12 +157,12 @@ int free_list(struct node *head) {
 	return 0;
 }
 
-void free_attr(struct node *this) {
-	if (NULL = this) {
+void free_attr(struct attr *this) {
+	if (NULL == this) {
 		return;
 	}
-	if (NULL != this.next) {
-		free_attr(this.next);
+	if (NULL != this->next) {
+		free_attr(this->next);
 	}
 	free(this);
 }
@@ -171,13 +171,13 @@ void free_node(struct node *this) {
 	if (NULL == this) {
 		return;
 	}
-	if (NULL != this.next) {
-		free_node(this.next);
+	if (NULL != this->next) {
+		free_node(this->next);
 	}
-	if (NULL != this.child) {
-		free_node(this.child);
+	if (NULL != this->child) {
+		free_node(this->child);
 	}
-	free_attr(this.attr);
+	free_attr(this->attr);
 	free(this);
 }
 
@@ -192,11 +192,11 @@ int push_next_to_attr(struct attr *this, const struct attr *next) {
 		return -1;
 	}
 
-	while(NULL != this.next) {
-		this = this.next;
+	while(NULL != this->next) {
+		this = this->next;
 	}
-	this.next = init_attr_from_attr(attr);
-	if (NULL == this.next) {
+	this->next = init_attr_from_attr(next);
+	if (NULL == this->next) {
 		perror("ERROR: push_next_to_attr(): Failed to add an attribute");
 		return -1;
 	}
@@ -216,20 +216,20 @@ int push_attr_to_node(struct node *this, const struct attr *attr) {
 	}
 
 	// No attributes assigned
-	if (NULL == this.attr) {
-		this.attr = init_attr_from_attr(attr);
-		if (NULL == this.attr) {
+	if (NULL == this->attr) {
+		this->attr = init_attr_from_attr(attr);
+		if (NULL == this->attr) {
 			perror("ERROR: push_attr_to_node(): Failed to init attributes");
 			return -1;
 		}
 	// Has attributes assigned
 	} else {
-		struct attr *last = this.attr;
-		while(NULL != last.next) {
-			last = last.next;
+		struct attr *last = this->attr;
+		while(NULL != last->next) {
+			last = last->next;
 		}
-		last.next = init_attr_from_attr(attr);
-		if (NULL == last.next) {
+		last->next = init_attr_from_attr(attr);
+		if (NULL == last->next) {
 			perror("ERROR: push_attr_to_node(): Failed to add an attribute");
 			return -1;
 		}
@@ -251,20 +251,20 @@ int push_next_to_node(struct node *this, const struct node *next) {
 	}
 
 	// No next assigned
-	if (NULL == this.next) {
-		this.next = init_node_from_node(next);
-		if (NULL == this.next) {
+	if (NULL == this->next) {
+		this->next = init_node_from_node(next);
+		if (NULL == this->next) {
 			perror("ERROR: push_next_to_node(): Failed to init next");
 			return -1;
 		}
 	// Has next assigned
 	} else {
-		struct node *last = this.next;
-		while(NULL != last.next) {
-			last = last.next;
+		struct node *last = this->next;
+		while(NULL != last->next) {
+			last = last->next;
 		}
-		last.next = init_node_from_node(next);
-		if (NULL == last.next) {
+		last->next = init_node_from_node(next);
+		if (NULL == last->next) {
 			perror("ERROR: push_next_to_node(): Failed to add next");
 			return -1;
 		}
@@ -279,29 +279,30 @@ int push_child_to_node(struct node *this, const struct node *child) {
 		perror("ERROR: push_child_to_node(): this is NULL");
 		return -1;
 	}
-	if (NULL == next) {
+	if (NULL == child) {
 		perror("ERROR: push_child_to_node(): next is NULL");
 		return -1;
 	}
 
 	// No child assigned
-	if (NULL == this.child) {
-		this.child = init_node_from_node(child);
-		if (NULL == this.next) {
+	if (NULL == this->child) {
+		this->child = init_node_from_node(child);
+		if (NULL == this->next) {
 			perror("ERROR: push_child_to_node(): Failed to init child");
 			return -1;
 		}
 	// Has child assigned
 	} else {
-		struct node *last = this.child;
-		while(NULL != last.next) {
-			last = last.next;
+		struct node *last = this->child;
+		while(NULL != last->next) {
+			last = last->next;
 		}
-		last.next = init_node_from_node(child);
-		if (NULL == last.next) {
+		last->next = init_node_from_node(child);
+		if (NULL == last->next) {
 			perror("ERROR: push_child_to_node(): Failed to add a child");
 			return -1;
 		}
+		
 	}
 
 	// On SUCCESS
