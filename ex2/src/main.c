@@ -1,6 +1,9 @@
 #include <stdio.h>
+#include <stdbool.h>
+#include <string.h>
 
 #include "node.h"
+#include "reader.h"
 
 struct rres {
 	enum rtype {
@@ -15,7 +18,8 @@ struct rres {
 	} buff;
 };
 
-int read_next(struct rres *result);
+int read_node(FILE *ofs, struct node **result);
+struct node *read_layer();
 int parse(struct node *list, char *filename);
 int init();
 
@@ -29,19 +33,19 @@ int read_next(struct rres *result) {
 
 int parse(struct node *list, char *filename) {
 	struct rres result;
-	//while(0 == read_next(&result)) {
-	//	switch(result.type) {
-	//	case NODE:
-	//		break;
-	//	case ATTR:
-	//		break;
-	//	case END:
-	//		break;
-	//	case BAD:
-	//		perror("ERROR: parser(): Bad string given");
-	//		return -1;
-	//	}
-	//}
+	while(0 == read_next(&result)) {
+		switch(result.type) {
+		case NODE:
+			break;
+		case ATTR:
+			break;
+		case END:
+			break;
+		case BAD:
+			fprintf(stderr, "%s: %s(): Bad string given", "ERROR", __func__);
+			return -1;
+		}
+	}
 
 	result.buff._node.name = "TEST";
 	result.buff._node.attr = NULL;
@@ -58,7 +62,7 @@ int parse(struct node *list, char *filename) {
 int init(void) {
 	struct node *list = init_list();
 	if (NULL == list) {
-		perror("ERROR: init(): Failed to init list");
+		fprintf(stderr, "%s: %s(): Failed to init list", "ERROR", __func__);
 		return -1;
 	}
 
@@ -69,3 +73,44 @@ int init(void) {
 	return rcode;
 }
 
+// Read attribute (on 'a')
+int read_attr(FILE *ofs, struct attr **result) {
+	bool has_name = false;
+	bool 
+}
+
+// Read node (on '[')
+int read_node(FILE *ofs, struct node **result) {
+	if (NULL == ofs) {
+		fprintf(stderr, "%s: %s(): filestream is NULL", "ERROR", __func__);
+		return -1;
+	}
+	if (NULL == result) {
+		fprintf(stderr, "%s: %s(): result buffer is NULL", "ERROR", __func__);
+		return -1;
+	}
+
+	*result = init_list();
+	bool has_name = false;	// Warning on empty name
+	bool has_attr = false;	// Warning on no attributes
+	while(']' != (unsigned char ch = (unsigned char)fgetc(ofc))) {
+		switch (ch) {
+		// Haven't closed with ], assuming new child
+		case '[':
+			struct node *child = NULL;
+			if (0 != read_node(ofc, child)) {
+				fprintf(stderr, "%s: %s(): Child parse error, discarding", "Warning", __func__);
+			} else {
+				(*result)->child = child;
+			}
+			break;
+		case 'n':
+			if (has_name) {
+				fprintf(stderr, "%s: %s(): Node already had a name, overriding", "Warning", __func__);
+			}
+
+		}
+	}
+
+	return 0;
+}

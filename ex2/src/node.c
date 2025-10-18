@@ -3,14 +3,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
-/// @brief Вспомогательная функция инициализации строки char *dst
+/// Вспомогательная функция инициализации строки char *dst
 /// по переданной строке char *src и максимальному размеру lmax.
-/// @note src == NULL не является обязателньым, но предполагается.
+/// src == NULL не является обязателньым, но предполагается.
 /// Скидывает предупреждение в stderr.
-/// @note Инициализирует строгий размер, чанки показались сомнительными
+/// Инициализирует строгий размер, чанки показались сомнительными
 /// с указанными в задании значениями.
-/// @return Указатель на строку при успехе, иначе - NULL
+/// return Указатель на строку при успехе, иначе - NULL
 static inline char *init_str_from_str(const char *src, const size_t lmax) {
 	char *dst = NULL;
 	size_t len;
@@ -35,11 +36,11 @@ static inline char *init_str_from_str(const char *src, const size_t lmax) {
 	return dst;
 }
 
-/// @brief Вспомогательная функция иницализации атрибута dst по
+/// Вспомогательная функция иницализации атрибута dst по
 /// переданному указателю src на базовый атрибут.
-/// @note src.next == NULL не является обязательным, но предполагается.
+/// src.next == NULL не является обязательным, но предполагается.
 /// Скидывает предупреждение в stderr.
-/// @return Указатель на атрибут при успехе, иначе - NULL
+/// return Указатель на атрибут при успехе, иначе - NULL
 static struct attr *init_attr_from_attr(const struct attr *src) {
 	if (NULL == src) {
 		perror("ERROR: init_attr_from_attr(): src is NULL");
@@ -67,18 +68,18 @@ static struct attr *init_attr_from_attr(const struct attr *src) {
 		dst->next = src->next;
 
 		return dst;
-	} while(0);
+	} while(false);
 
 	// On break (fail)
 	free_attr(dst);
 	return NULL;
 }
 
-/// @brief Вспомогательная функция иницализации узла dst по переданному
+/// Вспомогательная функция иницализации узла dst по переданному
 /// указателю src на базовый узел.
-/// @note src.next == NULL и src.child == NULL  не являются обязательным,
+/// src.next == NULL и src.child == NULL  не являются обязательным,
 /// но предполагаются. Скидывает предупреждение в stderr.
-/// @return Указатель на узел при успехе, иначе - NULL
+/// return Указатель на узел при успехе, иначе - NULL
 static struct node *init_node_from_node(const struct node *src) {
 	if (NULL == src) {
 		perror("ERROR: init_node_from_node(): src is NULL");
@@ -125,14 +126,14 @@ static struct node *init_node_from_node(const struct node *src) {
 			dst->child = NULL;
 		}
 		return dst;
-	} while(0);
+	} while(false);
 
 	// On break (fail)
 	free_node(dst);
 	return NULL;
 }
 
-/// @brief Функция инициализации (head) листа.
+/// Функция инициализации (head) листа.
 struct node *init_list(void) {
 	struct node *head = (struct node *)malloc(sizeof(struct node));
 	if (NULL == head) {
@@ -307,5 +308,37 @@ int push_child_to_node(struct node *this, const struct node *child) {
 
 	// On SUCCESS
 	return 0;
+}
+
+struct attr *get_next_from_attr(struct attr *this) {
+	if (NULL == this) {
+		perror("ERROR: get_next_from_attr(): this is NULL");
+		return NULL;
+	}
+	return this->next;
+}
+
+struct attr *get_attr_from_node(struct node *this) {
+	if (NULL == this) {
+		perror("ERROR: get_attr_from_node(): this is NULL");
+		return NULL;
+	}
+	return this->attr;
+}
+
+struct node *get_next_from_node(struct node *this) {
+	if (NULL == this) {
+		perror("ERROR: get_next_from_node(): this is NULL");
+		return NULL;
+	}
+	return this->next;
+}
+
+struct node *get_child_from_node(struct node *this) {
+	if (NULL == this) {
+		perror("ERROR: get_child_from_node(): this is NULL");
+		return NULL;
+	}
+	return this->child;
 }
 

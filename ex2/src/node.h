@@ -57,5 +57,18 @@ int push_next_to_node(struct node *this, const struct node *next);
 /// не записывает его адрес в this.
 int push_child_to_node(struct node *this, const struct node *child);
 
+/// Функция получения следующего атрибута у attr.
+/// return Указатель на next при наличии, иначе - NULL
+struct attr *get_next_from_attr(struct attr *this);
+/// Функция получения первого атрибута у node.
+/// return Указатель на attr при наличии, иначе - NULL
+struct attr *get_attr_from_node(struct node *this);
+/// Функция получения следующего узла у node.
+/// return Указатель на next при наличии, иначе - NULL
+struct node *get_next_from_node(struct node *this);
+/// Функция получения первого child у node.
+/// return Указатель на child при наличии, иначе - NULL
+struct node *get_child_from_node(struct node *this);
+
 #endif  // NODE_H__
 
