@@ -1,6 +1,11 @@
 #ifndef NODE_H__
 #define NODE_H__
 
+#define ATTR_NAME_LENGTH_MAX 1024
+#define ATTR_VALUE_LENGTH_MAX 1024
+
+#define NODE_NAME_LENGTH_MAX 1024
+
 struct attr {
 	char *name;
 	char *value;
@@ -14,42 +19,43 @@ struct node {
 	struct node *child;
 };
 
-/// @brief Функция инициализации (head) листа.
-/// @note По завершению работы с листом необходимо высвободить
-/// память с помощью delete_list(struct node *head)
-/// @return Указатель на head при успехе, иначе - NULL
+/// Функция инициализации (head) листа.
+/// По завершению работы с листом необходимо высвободить
+/// память с помощью delete_list(struct node *head).
+/// return Указатель на head при успехе, иначе - NULL
 struct node *init_list(void);
 
-/// @brief Функция деинициализации листа (по head).
-/// @note Используется по завершению работы с листом
-/// @return 0 - успех, иначе -1
+/// Функция деинициализации листа (по head).
+/// Используется по завершению работы с листом.
+/// return 0 - успех, иначе -1
 int free_list(struct node *head);
 
-/// @brief Функция рекурсивного удаления узла
+/// Функция рекурсивного удаления узла.
 void free_node(struct node *this);
-/// @brief Функция рекурсивного удаления атрибутов
+/// Функция рекурсивного удаления атрибутов.
 void free_attr(struct attr *this);
 
-/// @brief Функция добавления атрибута next к атрибуту this
-/// @note Если this.next != NULL, добавляет в конец this.next
-/// @warning Данная функция создает копию значений next, а
+/// Функция добавления атрибута next к атрибуту this.
+/// Если this.next != NULL, добавляет в конец this.next.
+/// Данная функция создает копию значений next, а
 /// не записывает его адрес в this.
-int add_next_to_attr(struct attr* this, struct attr *next);
+int push_next_to_attr(struct attr* this, const struct attr *next);
 
-/// @brief Функция добавления атрибута attr к узлу this
-/// @note Если this.attr != NULL, добавляет в конец this.attr
-/// @warning Данная функция создает копию значений attr, а
+/// Функция добавления атрибута attr к узлу this.
+/// Если this.attr != NULL, добавляет в конец this.attr
+/// Данная функция создает копию значений attr, а
 /// не записывает его адрес в this.
-int add_attr_to_node(struct node *this, struct attr *attr);
-/// @brief Фукнция добавления узла next к узлу this
-/// @note Если this.next != NULL, добавляет в конец this.next
-/// @warning Данная функция создает копию значений next, а
+int push_attr_to_node(struct node *this, const struct attr *attr);
+/// Фукнция добавления узла next к узлу this.
+/// Если this.next != NULL, добавляет в конец this.next.
+/// Данная функция создает копию значений next, а
 /// не записывает его адрес в this.
-int add_next_to_node(struct node *this, struct node *next);
-/// @brief Функция добавления узла
-/// @note Если this.child != NULL, добавляет в конец this.child.next
-/// @warning Данная функция создает копию значений child, а
+int push_next_to_node(struct node *this, const struct node *next);
+/// Функция добавления узла.
+/// Если this.child != NULL, добавляет в конец this.child.next.
+/// Данная функция создает копию значений child, а
 /// не записывает его адрес в this.
-int add_child_to_node(struct node *this, struct node *child):
+int push_child_to_node(struct node *this, const struct node *child):
 
 #endif  // NODE_H__
+
