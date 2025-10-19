@@ -16,6 +16,10 @@ $(TARGET): $(OBJS)
 %.o: src/%.c
 	$(CC) $(CFLAGS) -c $^
 
+install: $(TARGET)
+uninstall:
+	rm build/$(TARGET)
+
 clean:
 	rm $(OBJS)
 
