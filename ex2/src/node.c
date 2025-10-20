@@ -5,36 +5,7 @@
 #include <string.h>
 #include <stdbool.h>
 
-/// Вспомогательная функция инициализации строки char *dst
-/// по переданной строке char *src и максимальному размеру lmax.
-/// src == NULL не является обязателньым, но предполагается.
-/// Скидывает предупреждение в stderr.
-/// Инициализирует строгий размер, чанки показались сомнительными
-/// с указанными в задании значениями.
-/// return Указатель на строку при успехе, иначе - NULL
-static inline char *init_str_from_str(const char *src, const size_t lmax) {
-	char *dst = NULL;
-	size_t len;
-
-	if (NULL != src) {
-		len = strnlen(src, lmax);
-	} else {
-		perror("Warning: init_str_from_str(): src is NULL");
-		len = 0;	
-	}
-
-	dst = (char *)malloc(len + 1);
-	if (NULL == dst) {
-		perror("ERROR: init_str_from_str(): Failed to init a string");
-		return NULL;
-	}
-	
-	if (NULL != src) {
-		strncpy(dst, src, len);
-	}
-	dst[len] = '\0';
-	return dst;
-}
+#include "parser.h"
 
 /// Вспомогательная функция иницализации атрибута dst по
 /// переданному указателю src на базовый атрибут.

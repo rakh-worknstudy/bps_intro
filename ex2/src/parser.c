@@ -64,12 +64,13 @@ enum check_mode_e {
 /// Функция для ожидания следующих данных
 /// await_eq - режим ожидания '=' для начала чтения value
 /// await_val - режим ожидания value (любые ascii)
-static inline check_instruction(const unsigned char ch, const int *mode) {
+static int check_instruction(const unsigned char ch, const int *mode) {
 	switch (ch) {
 	case ' ':
 	case '\t':
 		return R_SKIP;   // Пропуск пробелов или закрытие чтения при await_val == false
 	case ']':
+		
 		return R_END;    // 
 	case '[':
 		if (C_READ_ANY == mode || C_AWAIT_ANY == mode) {
@@ -108,6 +109,30 @@ static int read_str(FILE *ofs, struct read_str_param param);
 static struct attr *read_attr(FILE *ofs);
 static struct node *read_node(FILE *ofs);
 
+char *init_str_from_str(const char *src, const size_t lmax) {
+	char *dst = NULL;
+	size_t len;
+
+	if (NULL != src) {
+		len = strnlen(src, lmax);
+	} else {
+		perror("Warning: init_str_from_str(): src is NULL");
+		len = 0;	
+	}
+
+	dst = (char *)malloc(len + 1);
+	if (NULL == dst) {
+		perror("ERROR: init_str_from_str(): Failed to init a string");
+		return NULL;
+	}
+	
+	if (NULL != src) {
+		strncpy(dst, src, len);
+	}
+	dst[len] = '\0';
+	return dst;
+}
+
 struct node *parse_file(const char *filename) {
 	if (NULL == filename || '\0' == filename[0]) {
 		fprintf("%s: %s: No filename given", "ERROR", __func__);
@@ -116,170 +141,174 @@ struct node *parse_file(const char *filename) {
 
 }
 
-static inline int read_attr_name(FILE *ofs, unsigned char **name) {
-	unsigned char buffer[ATTR_NAME_LENGTH_MAX + 1];
-	size_t len = 0;
+static inline unsigned char read_attr_name(FILE *ofs, unsigned char *name, size_t *len) {
+	*len = 0;
 
 	unsigned char ch;
-	while(EOF != (ch = fgets(ofs))) {
-		int whatsnext = check_instruction(ch, C_AWAIT_EQ);
-		switch (whatsnext) {
-		case R_OK:
-			if (len < ATTR_NAME_LENGTH_MAX) {
-				buffer[len++] = ch;
+	while(EOF != (ch = fgetc(ofs))) {
+		if (R_OK == check_allowed(ch)) {
+			if (ATTR_NAME_LENGTH_MAX < *len) {
+				name[(*len)++] = ch;
 			} else {
-				fprintf("%s: %s: Max attribute name length exceeded. Discarding excessive symbol \'%c\'", "Warning", __func__, ch);
+				fprintf("%s: %s: Character \'%c\' exceeds attribute name length. Discaring", "Warning", __func__, ch);
+			}
+		} else if (ch == '=') {
+			break;
+		} else if (ch == ']' || ch == '[') {
+			if (0 == *len) {
+				fprintf("%s: %s: Node closed without getting any attributes", "Info", __func__);
+			} else {
+				fprintf("%s: %s: Got an attribute without a value", "Info", __func__);
 			}
 			break;
-		case R_END:
-		case R_BREAK:
-			return whatsnext; // 
-		}
-		// No switch-case for breaks out of while
-		if (R_OK == whatsnext) {
-			break;
-		}
-		if (R_SKIP == whatsnext) {
-			fprintf("%s: %s: Excessive spaces found", "Info", __func__);
-			continue;
-		}
-
-	}
-	if (ch == ']') {
-		fprintf("%s: %s: Node closed without getting any attributes", "Warning", __func__);
-		return R_END;
-	}
-	if (ch == '(') {
-	}
-	return 0;
-}
-static inline int read_attr_value(FILE *ofs, unsigned char **value) {
-	return 0;
-}
-static struct attr *read_attr(FILE *ofs) {
-	
-}
-
-static struct node *read_node(FILE *ofs) {
-}
-
-
-// check_normal/onescape return values
-enum check_rcode {
-	OK = 0,
-	ESC,
-	END,
-	BAD = -1
-};
-
-// Check symbol when no escape is given
-static inline int check_normal(const unsigned char ch, const unsigned char *delim, bool any) {
-	// '\' -> escape
-	if ('\\' == ch) {
-		return ESC;
-	}
-	if (NULL != strchr(delim, ch)) {
-		return END;
-	}
-	if (any || 0 == check_allowed(ch)) {
-		return OK;
-	}
-	return BAD;
-}
-// Check symbol after escape
-static inline int check_onescape(const unsigned char ch, const unsigned char *delim) {
-	if (' ' != ch && NULL != strchr(delim, ch)) {
-		return OK;
-	}
-	// '\\' -> '\'
-	if ('\' == ch) {
-		return OK;
-	}
-	fprintf("%s: %s: Bad character \'%c\' after \'\\\'", "ERROR", __func__, ch);
-	return BAD;
-}
-
-static int read_str(FILE *ofs, struct read_str_param param) {
-	if (NULL == ofs) {
-		fprintf("%s: %s: Filestream is NULL", "ERROR", __func__);
-		return -1;
-	}
-
-	unsigned char **buffer     = param.buffer;
-	const size_t size          = param.size;
-	const unsigned char *delim = param.delim;
-	const bool any             = param.any;
-
-	if (NULL == buffer) {
-		fprintf("%s: %s: Buffer is NULL", "ERROR", __func__);
-		return -1;
-	}
-	if (size == 0) {
-		fprintf("%s: %s: Buffer size is 0. Aborting", "ERROR", __func__);
-		return -1;
-	}
-	if (size == 1) {
-		fprintf("%s: %s: Buffer size is 1. Return \"\\0\"", "Warning", __func__);
-		(*buffer)[0] = '\0';
-		return 0;
-	}
-
-	// Use default ' ' delimiter if delim is empty
-	const unsigned char *_delim = (0 != strnlen(delim, 2)) ? delim : " ";
-
-	size_t len = 0;
-	unsigned char ch;
-	while(EOF != (unsigned char ch = fgetc(ofs))) {
-		if (has_escape) {
-			has_escape = false;
-			int res = check_onescape(ch, _delim);
-			switch(res) {
-			case 'R_OK':
-				(*buffer)[len++] = ch;
-				break;
-			case 'R_BAD':
-				fprintf("%s: %s: Discarding characters \\%c", "Warning", __func__, ch);
-				break;
-			default:
-				fprintf("%s: %s: Unknown error. Aborting", "CRITICAL", __func__);
-				return -1;
+		} else if (ch == ' ' || ch == '\t') {
+			if (0 != len) {
+				break;	// End of attr.name
 			}
 		} else {
-			int res = check_normal(ch, _delim, any);
-			switch(res) {
-			case 'R_OK':
-				// Write character only if have space left
-				if (size - 1 > len) {
-					(*buffer)[len++] = ch;
-				} else {
-					fprintf("%s: %s: Max length exceeded. Discarding excessive characters", "Warning", __func__, ch);
-				}
-				break;
-			case 'R_ESC':
-				// Escape only if have space left
-				if (size - 1 > len) {
-					has_escape = true;
-				} else {
-					fprintf("%s: %s: Max length exceeded. Discarding excessive characters", "Warning", __func__, ch);
-				}
-				break;
-			case 'R_BAD':
-				fprintf("%s: %s: Discarding character %c", "Warning", __func__, ch);
-				break;
-			case 'R_END':
-				break;
-			default:
-				fprintf("%s: %s: Unknown error. Aborting", "CRITICAL", __func__);
-				return -1;
+			fprintf("%s: %s: Got a bad character \'%c\'. Discarding", "Warning", __func__, ch);
+		}	
+	}
+
+	name[*len] = '\0';
+	return ch;
+}
+
+static unsigned char read_attr_value(FILE *ofs, unsigned char *value, size_t *len) {
+	*len = 0;
+
+	unsigned char ch;
+	while(EOF != (ch = fgetc(ofs))) {
+		if (R_OK == check_allowed(ch)) {
+			if (ATTR_VALUE_LENGTH_MAX < *len) {
+				name[(*len)++] = ch;
+			} else {
+				fprintf("%s: %s: Character \'%c\' exceeds attribute value length. Discarding", "Warning", __func__, ch);
 			}
+		} else if (ch == '=') {
+
 		}
-		if (size - 1 > len) {
-			(*buffer)[len] = '\0';
+	}
+
+	return 0;
+}
+static unsigned char read_attr(FILE *ofs, struct attr *attr) {
+	attr->name = NULL;
+	attr->value = NULL;
+	attr->next = NULL;
+
+	unsigned char name[ATTR_NAME_LENGTH_MAX + 1];
+	size_t len;
+	unsigned char ch = read_attr_name(ofs, name, &len);
+	if (0 < len) {
+		attr->name = init_str_from_str(name, ATTR_NAME_LENGTH_MAX);
+	}
+
+	switch (ch) {
+	case ']':
+	case '[':
+		break;
+	case ' ':
+		len = 0
+		unsigned char nname[ATTR_NAME_LENGTH_MAX + 1];
+		ch = read_attr_name(ofs, name, &len);
+		if (0 < strnlen(name, 2)) {
+			struct attr *_nattr = (struct attr *)malloc(sizeof(struct attr));
+			push_next_to_attr(attr, _nattr);
+			free_attr(_nattr);
+		}
+		if ('=' != ch) {
+			break;
+		}
+	case '=':
+		if (NULL == attr->name) {
+			fprintf("%s: %s: Found \'=\' with empty attr.name", "Warning", __func__);
+		}
+		len = 0;
+		unsigned char value[ATTR_VALUE_LENGTH_MAX + 1];
+		ch = read_attr_value(ofs, value, &len);
+		if (0 < len) {
+			attr->value = init_str_from_str(value, ATTR_VALUE_LENGTH_MAX);
+		}
+		break;
+	default:
+		fprintf("%s: %s: EOF or unknown error", "ERROR", __func__);
+		break;
+	}
+
+	
+	return ch;
+}
+
+static unsigned char read_node_name(FILE *ofs, unsigned char *name, size_t *len) {
+	*len = 0;
+
+	unsigned char ch;
+	while(EOF != (ch = fgetc(ofs))) {
+		if (R_OK == check_allowed(ch)) {
+			if (NODE_NAME_LENGTH_NAME < *len) {
+				name[(*len)++] = ch;
+			} else {
+				fprintf("%s: %s: Character \'%c\' exceeds node name length. Discarding", "Warning", __func__, ch);
+			}
+		} else if (']' == ch) {
+			if (0 == *len) {
+				fprintf("%s: %s: No node name given", "Warning", __func__);
+			}
+			fprintf("%s: %s: Node closed without getting any attributes", "Info", __func__);
+			break;
+		} else if ('[' == ch || ' ' == ch) {
 			break;
 		}
 	}
-	
-	// Got string
-	return 0;
+
+	name[*len] = '\0';
+	return ch;
+}
+
+static unsigned char read_node(FILE *ofs, struct node *node) {
+	node->name = NULL;
+	node->attr = NULL;
+	node->next = NULL;
+	node->child = NULL;
+
+	unsigned char result;
+	do {
+		unsigned char name[NODE_NAME_LENGTH_MAX + 1];
+		if (NULL == node->name) {
+			size_t len;
+			result = read_node_name(ofs, name, &len);
+			if (0 < len) {
+				node->name = init_str_from_str(name, NODE_NAME_LENGTH_MAX);
+			}
+		} else {
+			struct attr *_attr = (struct attr *)malloc(sizeof(struct attr));
+			result = read_attr(ofs, *_attr);
+			if (NULL != _attr->name && NULL != _attr->value) {
+				push_attr_to_node(node, _attr);
+			}
+			free_attr(_attr)
+		}
+		if ('[' == result) {
+			struct node *_child = (struct node *)malloc(sizeof(struct node));
+			result = read_node(ofs, _child);
+			if (NULL != _child->name) {
+				push_child_to_node(node, _child);
+			}
+			free_node(child);
+			if (']' == result) {
+				continue;
+			}
+			break;
+		}
+		if (']' == result) {
+			break;
+		}
+		if (' ' == result) {
+			continue;
+		}
+	} while (EOF != result);
+
+	return result;
 }
 
