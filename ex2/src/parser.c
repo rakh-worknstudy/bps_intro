@@ -1,7 +1,9 @@
 #include "parser.h"
 
+#include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+
 #include "node.h"
 
 // Вспомогательная структура для передаваемых параметров в функции read_
@@ -23,91 +25,20 @@ enum read_rval_e {
 	R_FAIL = -1  // Общие и незивестные критические ошибки (завершение работы)
 };
 
-//struct check_allowed_range {
-//	unsigned char *bounds[2]; // Массив пар left:right границ допустимых значений
-//	size_t count;             // Число пар
-//};
 
-//static inline check_allowed(const unsigned char ch, struct check_allowed_range allowed) {
-//	if (0 == count) {
-//		// ANY
-//		return R_OK;
-//	}
-//	for (size_t iter = 0; iter < count; ++iter) {
-//		if (allowed.bounds[iter][0] <= ch && allowed.bounds[iter][1] >= ch) {
-//			return R_OK;
-//		}
-//	}
-//	fprintf("%s: %s: Found unallowed character \'%c\'", "Warning", __func__, ch);
-//	return R_BAD;
-//}
-
-static inline check_allowed(const unsigned char ch) {
+static inline int check_allowed(const char ch) {
 	if(('0' <= ch && '9' >= ch) ||
 	   ('a' <= ch && 'z' >= ch) ||
 	   ('A' <= ch && 'Z' >= ch) ||
 	   ('_' == ch)) {
 		return R_OK;
 	}
-	fprintf("%s: %s: Found unallowed character \'%c\'", "Warning", __func__, ch);
+	fprintf(stderr, "%s: %s: Found unallowed character \'%c\'\n", "Warning", __func__, ch);
 	return R_BAD;
 }
 
-enum check_mode_e {
-	C_READ_NORMAL = 0,  // Read normal symbols
-	C_READ_ANY,         // Read any symbols
-	C_AWAIT_NORMAL,     // After '[' or node.name
-	C_AWAIT_ANY,        // After '='
-	C_AWAIT_EQ          // On reading attr.name
-}
-
-/// Функция для ожидания следующих данных
-/// await_eq - режим ожидания '=' для начала чтения value
-/// await_val - режим ожидания value (любые ascii)
-static int check_instruction(const unsigned char ch, const int *mode) {
-	switch (ch) {
-	case ' ':
-	case '\t':
-		return R_SKIP;   // Пропуск пробелов или закрытие чтения при await_val == false
-	case ']':
-		
-		return R_END;    // 
-	case '[':
-		if (C_READ_ANY == mode || C_AWAIT_ANY == mode) {
-			return R_OK;
-		}
-		return R_BREAK;  // Открытие нового (дочернего) узла
-	case '=':
-		if (C_NORMAL == mode) {
-			R_ESC;
-		}
-		return R_OK;
-	default:
-		// Нашли начало attr.value
-		if (C_READ_ANY == mode || C_AWAIT_ANY == mode) {
-			// Чтение параметра с пробелами или экранирование
-			if ('\'' == ch || '\"' == ch) {
-				return R_ESC;
-			}
-			return R_OK;
-		//
-		} else if (C_AWAIT_EQ == mode) {
-			return R_OK;
-		// Нашли символ в node.name или attr.name
-		} else if (C_READ_NORMAL == mode || C_AWAIT_NORMAL == mode) {
-			if (R_OK == check_allowed(ch)) {
-				return R_OK;
-			}
-		}
-		// Ошибка парсинга
-		return R_BAD;
-	}
-}
- 
-static int read_str(FILE *ofs, struct read_str_param param);
-
-static struct attr *read_attr(FILE *ofs);
-static struct node *read_node(FILE *ofs);
+static char read_attr(FILE *ofs, struct attr *attr);
+static int read_node(FILE *ofs, struct node *node);
 
 char *init_str_from_str(const char *src, const size_t lmax) {
 	char *dst = NULL;
@@ -116,13 +47,13 @@ char *init_str_from_str(const char *src, const size_t lmax) {
 	if (NULL != src) {
 		len = strnlen(src, lmax);
 	} else {
-		perror("Warning: init_str_from_str(): src is NULL");
+		fprintf(stderr, "%s: %s: src is NULL\n", "Warning", __func__);
 		len = 0;	
 	}
 
 	dst = (char *)malloc(len + 1);
 	if (NULL == dst) {
-		perror("ERROR: init_str_from_str(): Failed to init a string");
+		fprintf(stderr, "%s: %s: Failed to init a string\n", "ERROR", __func__);
 		return NULL;
 	}
 	
@@ -133,40 +64,81 @@ char *init_str_from_str(const char *src, const size_t lmax) {
 	return dst;
 }
 
-struct node *parse_file(const char *filename) {
+int parse_file(const char *filename, struct node *head) {
 	if (NULL == filename || '\0' == filename[0]) {
-		fprintf("%s: %s: No filename given", "ERROR", __func__);
+		fprintf(stderr, "%s: %s: No filename given\n", "ERROR", __func__);
 		return -1;
 	}
+	if (NULL == head) {
+		fprintf(stderr, "%s: %s: head is NULL\n", "ERROR", __func__);
+		return -1;
+	}
+	FILE *ofs = fopen(filename, "r");
+	if (NULL == ofs) {
+		fprintf(stderr, "%s: %s: Can't open file \"%s\"\n", "ERROR", __func__, filename);
+		return -1;
+	}
+	
+	head->name = NULL;
+	head->attr = NULL;
+	head->next = NULL;
+	head->child = NULL;
 
+	struct node *node = NULL;
+	char ch;
+	while(EOF != (ch = fgetc(ofs))) {
+		// valgrind ругается без явной конструкции, на всякий
+		if (NULL == node) {
+			node = (struct node *)malloc(sizeof(struct node));
+			if (NULL == node) {
+				fprintf(stderr, "%s: %s: Can't malloc node. Aborting", "CRITICAL", __func__);
+				fclose(ofs);
+				return -1;
+			}
+			node->name = NULL;
+			node->attr = NULL;
+			node->next = NULL;
+			node->child = NULL;
+		}
+		if ('[' == ch) {
+			read_node(ofs, node);
+			if (node->name || node->attr || node->next || node->child) {
+				move_next_to_node_end(head, node);
+				node = NULL;
+			}
+		}
+	}
+	if (node) 
+		free_node(node);
+
+	fclose(ofs);
+	return 0;
 }
 
-static inline unsigned char read_attr_name(FILE *ofs, unsigned char *name, size_t *len) {
+static inline char read_attr_name(FILE *ofs, char *name, size_t *len) {
 	*len = 0;
 
-	unsigned char ch;
+	char ch;
 	while(EOF != (ch = fgetc(ofs))) {
-		if (R_OK == check_allowed(ch)) {
-			if (ATTR_NAME_LENGTH_MAX < *len) {
-				name[(*len)++] = ch;
-			} else {
-				fprintf("%s: %s: Character \'%c\' exceeds attribute name length. Discaring", "Warning", __func__, ch);
-			}
-		} else if (ch == '=') {
+		if (ch == '=') {
 			break;
 		} else if (ch == ']' || ch == '[') {
-			if (0 == *len) {
-				fprintf("%s: %s: Node closed without getting any attributes", "Info", __func__);
-			} else {
-				fprintf("%s: %s: Got an attribute without a value", "Info", __func__);
+			if (0 != *len) {
+				fprintf(stderr, "%s: %s: Got an attribute without a value\n", "Info", __func__);
 			}
 			break;
 		} else if (ch == ' ' || ch == '\t') {
 			if (0 != len) {
 				break;	// End of attr.name
 			}
+		} else if (R_OK == check_allowed(ch)) {
+			if (ATTR_NAME_LENGTH_MAX > *len) {
+				name[(*len)++] = ch;
+			} else {
+				fprintf(stderr, "%s: %s: Character \'%c\' exceeds attribute name length. Discaring\n", "Warning", __func__, ch);
+			}
 		} else {
-			fprintf("%s: %s: Got a bad character \'%c\'. Discarding", "Warning", __func__, ch);
+			fprintf(stderr, "%s: %s: Got a bad character \'%c\'. Discarding\n", "Warning", __func__, ch);
 		}	
 	}
 
@@ -174,32 +146,87 @@ static inline unsigned char read_attr_name(FILE *ofs, unsigned char *name, size_
 	return ch;
 }
 
-static unsigned char read_attr_value(FILE *ofs, unsigned char *value, size_t *len) {
+// Only with \' or \"
+static inline void check_onescape(const char ch, const char quote) {
+	if (0 == quote) {
+		if (']' == ch || '[' == ch) {
+			return;
+		}
+	} else if ('\'' == ch || '\"' == ch) {
+		if (quote == ch) {
+			return;
+		}
+	} else if ('\\' == ch) {
+		return;
+	}
+
+	fprintf(stderr, "%s: %s: Excessive backslash\n", "Info", __func__);
+
+}
+static inline int check_normal(const char ch, char *quote, const size_t len) {
+	if ('\"' == ch || '\'' == ch) {
+		if (ch == *quote) {
+			return R_END;
+		} else if (0 == len) {
+			*quote = ch;
+			return R_SKIP;
+		}
+	
+	} else if ('\\' == ch) {
+		return R_ESC;
+	} else if ((' ' == ch || '[' == ch || ']' == ch) && 0 == *quote) {
+		return R_END;
+	}
+
+	return R_OK;
+}
+
+static char read_attr_value(FILE *ofs, char *value, size_t *len) {
 	*len = 0;
 
-	unsigned char ch;
-	while(EOF != (ch = fgetc(ofs))) {
-		if (R_OK == check_allowed(ch)) {
-			if (ATTR_VALUE_LENGTH_MAX < *len) {
-				name[(*len)++] = ch;
-			} else {
-				fprintf("%s: %s: Character \'%c\' exceeds attribute value length. Discarding", "Warning", __func__, ch);
-			}
-		} else if (ch == '=') {
+	bool has_escape = false;
+	char quote = 0;
 
+	char ch;
+	while(EOF != (ch = fgetc(ofs))) {
+		// Determine action
+		int action;
+		if (has_escape) {
+			check_onescape(ch, quote);
+			has_escape = false;
+			action = R_OK;
+		} else {
+			action = check_normal(ch, &quote, *len);
+		}
+		// Act
+		if (R_OK == action) {
+			if (ATTR_VALUE_LENGTH_MAX > *len) {
+				value[(*len)++] = ch;
+			} else {
+				fprintf(stderr, "%s: %s: Character \'%c\' exceeded attribute value length. Discarding\n", "Warning", __func__, ch);
+			}
+		} else if (R_ESC == action) {
+			has_escape = true;
+		} else if (R_END == action) {
+			break;
 		}
 	}
 
-	return 0;
+	value[*len] = '\0';
+	return ch;
 }
-static unsigned char read_attr(FILE *ofs, struct attr *attr) {
+static char read_attr(FILE *ofs, struct attr *attr) {
 	attr->name = NULL;
 	attr->value = NULL;
 	attr->next = NULL;
 
-	unsigned char name[ATTR_NAME_LENGTH_MAX + 1];
+	char name[ATTR_NAME_LENGTH_MAX + 1];
+	char value[ATTR_VALUE_LENGTH_MAX + 1];
+
 	size_t len;
-	unsigned char ch = read_attr_name(ofs, name, &len);
+	char ch;
+
+	ch = read_attr_name(ofs, name, &len);
 	if (0 < len) {
 		attr->name = init_str_from_str(name, ATTR_NAME_LENGTH_MAX);
 	}
@@ -209,56 +236,54 @@ static unsigned char read_attr(FILE *ofs, struct attr *attr) {
 	case '[':
 		break;
 	case ' ':
-		len = 0
-		unsigned char nname[ATTR_NAME_LENGTH_MAX + 1];
 		ch = read_attr_name(ofs, name, &len);
-		if (0 < strnlen(name, 2)) {
+		if (0 < len) {
 			struct attr *_nattr = (struct attr *)malloc(sizeof(struct attr));
-			push_next_to_attr(attr, _nattr);
-			free_attr(_nattr);
+			_nattr->name = init_str_from_str(name, ATTR_NAME_LENGTH_MAX);
+			move_next_to_attr_end(attr, _nattr);
+			attr = attr->next; // Предыдущий атрибут имел пустое value, пришел новый
 		}
 		if ('=' != ch) {
 			break;
 		}
+		// fallthrough
 	case '=':
 		if (NULL == attr->name) {
-			fprintf("%s: %s: Found \'=\' with empty attr.name", "Warning", __func__);
+			fprintf(stderr, "%s: %s: Found \'=\' with empty attr.name\n", "Warning", __func__);
 		}
-		len = 0;
-		unsigned char value[ATTR_VALUE_LENGTH_MAX + 1];
+		len = 0;;
 		ch = read_attr_value(ofs, value, &len);
 		if (0 < len) {
 			attr->value = init_str_from_str(value, ATTR_VALUE_LENGTH_MAX);
 		}
 		break;
 	default:
-		fprintf("%s: %s: EOF or unknown error", "ERROR", __func__);
+		fprintf(stderr, "%s: %s: EOF or unknown error\n", "ERROR", __func__);
 		break;
 	}
-
 	
 	return ch;
 }
 
-static unsigned char read_node_name(FILE *ofs, unsigned char *name, size_t *len) {
+static char read_node_name(FILE *ofs, char *name, size_t *len) {
 	*len = 0;
 
-	unsigned char ch;
+	char ch;
 	while(EOF != (ch = fgetc(ofs))) {
-		if (R_OK == check_allowed(ch)) {
-			if (NODE_NAME_LENGTH_NAME < *len) {
-				name[(*len)++] = ch;
-			} else {
-				fprintf("%s: %s: Character \'%c\' exceeds node name length. Discarding", "Warning", __func__, ch);
-			}
-		} else if (']' == ch) {
+		if (']' == ch) {
 			if (0 == *len) {
-				fprintf("%s: %s: No node name given", "Warning", __func__);
+				fprintf(stderr, "%s: %s: No node name given\n", "Warning", __func__);
 			}
-			fprintf("%s: %s: Node closed without getting any attributes", "Info", __func__);
+			// fprintf(stderr, "%s: %s: Node \"%s\" closed without getting any attributes\n", "Info", __func__, name);
 			break;
 		} else if ('[' == ch || ' ' == ch) {
 			break;
+		} else if (R_OK == check_allowed(ch)) {
+			if (NODE_NAME_LENGTH_MAX > *len) {
+				name[(*len)++] = ch;
+			} else {
+				fprintf(stderr, "%s: %s: Character \'%c\' exceeds node name length. Discarding\n", "Warning", __func__, ch);
+			}
 		}
 	}
 
@@ -266,15 +291,15 @@ static unsigned char read_node_name(FILE *ofs, unsigned char *name, size_t *len)
 	return ch;
 }
 
-static unsigned char read_node(FILE *ofs, struct node *node) {
+static int read_node(FILE *ofs, struct node *node) {
 	node->name = NULL;
 	node->attr = NULL;
 	node->next = NULL;
 	node->child = NULL;
 
-	unsigned char result;
+	char result;
 	do {
-		unsigned char name[NODE_NAME_LENGTH_MAX + 1];
+		char name[NODE_NAME_LENGTH_MAX + 1];
 		if (NULL == node->name) {
 			size_t len;
 			result = read_node_name(ofs, name, &len);
@@ -283,19 +308,21 @@ static unsigned char read_node(FILE *ofs, struct node *node) {
 			}
 		} else {
 			struct attr *_attr = (struct attr *)malloc(sizeof(struct attr));
-			result = read_attr(ofs, *_attr);
+			result = read_attr(ofs, _attr);
 			if (NULL != _attr->name && NULL != _attr->value) {
-				push_attr_to_node(node, _attr);
+				move_attr_to_node_end(node, _attr);
+			} else {
+				free_attr(_attr);
 			}
-			free_attr(_attr)
 		}
 		if ('[' == result) {
 			struct node *_child = (struct node *)malloc(sizeof(struct node));
 			result = read_node(ofs, _child);
 			if (NULL != _child->name) {
-				push_child_to_node(node, _child);
+				move_child_to_node_end(node, _child);
+			} else {
+				free_node(_child);
 			}
-			free_node(child);
 			if (']' == result) {
 				continue;
 			}
@@ -309,6 +336,12 @@ static unsigned char read_node(FILE *ofs, struct node *node) {
 		}
 	} while (EOF != result);
 
-	return result;
+	if (EOF == result) {
+		fprintf(stderr, "%s: %s: Unexpected EOF\n", "Warning", __func__);
+	}
+	if (NULL == node->attr) {
+		fprintf(stderr, "%s: %s: Node \"%s\" closed without getting any attributes\n", "Info", __func__, node->name ? node->name : "");
+	}
+	return 0;
 }
 

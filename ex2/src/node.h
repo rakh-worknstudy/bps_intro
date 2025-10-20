@@ -19,6 +19,10 @@ struct node {
 	struct node *child;
 };
 
+
+// TODO поработать над функциями и именами
+
+
 /// Функция инициализации (head) листа.
 /// По завершению работы с листом необходимо высвободить
 /// память с помощью delete_list(struct node *head).
@@ -56,6 +60,18 @@ int push_next_to_node(struct node *this, const struct node *next);
 /// Данная функция создает копию значений child, а
 /// не записывает его адрес в this.
 int push_child_to_node(struct node *this, const struct node *child);
+
+/// TODO переименовать данную группу фукнций в attach?
+/// Функция добавления next к атрибуту this.
+/// Не создает копию, записывает переданный узел в конец.
+int move_next_to_attr_end(struct attr *this, struct attr *next);
+
+int move_attr_to_node_end(struct node *this, struct attr *next);
+/// Функция добавления узла next к узлу this.
+/// Не создает копию, записывает переданный узел в конец.
+int move_next_to_node_end(struct node *this, struct node *next);
+
+int move_child_to_node_end(struct node *this, struct node *child);
 
 /// Функция получения следующего атрибута у attr.
 /// return Указатель на next при наличии, иначе - NULL

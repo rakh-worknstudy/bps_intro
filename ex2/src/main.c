@@ -3,114 +3,95 @@
 #include <string.h>
 
 #include "node.h"
-#include "reader.h"
+#include "parser.h"
 
-struct rres {
-	enum rtype {
-		END = 0,
-		NODE,
-		ATTR,
-		BAD = -1
-	} type;
-	union rbuff {
-		struct node _node;
-		struct attr _attr;
-	} buff;
-};
+int print_list(const struct node *head) __attribute__((nonnull));
+int print_layer(const struct node *first, const int layer);
 
-int read_node(FILE *ofs, struct node **result);
-struct node *read_layer();
-int parse(struct node *list, char *filename);
-int init();
+int main(int argc, char *argv[]) {
+	if (argc < 2) {
+		fprintf(stderr, "No filename");
+		return -1;
+	}
+	const char *filename = argv[1];
+	struct node *head = init_list();
+	if (NULL == head) {
+		fprintf(stderr, "Failed to init a list\n");
+		return -1;
+	}
 
-int main(void) {
-	return init();
+	if (0 == parse_file(filename, head)) {
+		print_list(head);
+	} else {
+		fprintf(stderr, "Unable to proceed\n");
+	}
+	free_list(head);
+
+	return 0;
 }
 
-int read_next(struct rres *result) {
-	return -1;
+int print_list(const struct node *head) {
+	printf("================================\n");
+	struct node *first = (struct node *)head->next;
+	if (NULL == first) {
+		printf("List is empty\n");
+		return 0;
+	}
+
+	print_layer(first, 0);
+	printf("================================\n");
+	return 0;
 }
 
-int parse(struct node *list, char *filename) {
-	struct rres result;
-	while(0 == read_next(&result)) {
-		switch(result.type) {
-		case NODE:
-			break;
-		case ATTR:
-			break;
-		case END:
-			break;
-		case BAD:
-			fprintf(stderr, "%s: %s(): Bad string given", "ERROR", __func__);
-			return -1;
+static inline int print_attributes(const struct attr *first, const int spaces) {
+	static const int attributes_indent_spaces = 2;
+	const int spaces_attr = spaces + attributes_indent_spaces;
+
+	printf("%*sAttributes:", spaces, "");
+	if (NULL == first) {
+		printf(" -\n");
+		return 0;
+	}
+
+	printf("\n");
+	struct attr *at = (struct attr *)first;
+	while(NULL != at) {
+		printf("%*sName:  %s\n", spaces_attr, "", at->name ? at->name : "");
+		printf("%*sValue: %s\n", spaces_attr, "", at->value ? at->value : "");
+
+		if (NULL != at->next) {
+			printf("\n");
 		}
-	}
-
-	result.buff._node.name = "TEST";
-	result.buff._node.attr = NULL;
-	result.buff._node.next = NULL;
-	result.buff._node.child = NULL;
-	push_next_to_node(list, &result.buff._node);
-
-	printf("PUSHED NEXT");
-
-	// On FAIL
-	return -1;
-}
-
-int init(void) {
-	struct node *list = init_list();
-	if (NULL == list) {
-		fprintf(stderr, "%s: %s(): Failed to init list", "ERROR", __func__);
-		return -1;
-	}
-
-	int rcode = parse(list, "");
-
-	free_list(list);
-	printf("%d", rcode);
-	return rcode;
-}
-
-// Read attribute (on 'a')
-int read_attr(FILE *ofs, struct attr **result) {
-	bool has_name = false;
-	bool 
-}
-
-// Read node (on '[')
-int read_node(FILE *ofs, struct node **result) {
-	if (NULL == ofs) {
-		fprintf(stderr, "%s: %s(): filestream is NULL", "ERROR", __func__);
-		return -1;
-	}
-	if (NULL == result) {
-		fprintf(stderr, "%s: %s(): result buffer is NULL", "ERROR", __func__);
-		return -1;
-	}
-
-	*result = init_list();
-	bool has_name = false;	// Warning on empty name
-	bool has_attr = false;	// Warning on no attributes
-	while(']' != (unsigned char ch = (unsigned char)fgetc(ofc))) {
-		switch (ch) {
-		// Haven't closed with ], assuming new child
-		case '[':
-			struct node *child = NULL;
-			if (0 != read_node(ofc, child)) {
-				fprintf(stderr, "%s: %s(): Child parse error, discarding", "Warning", __func__);
-			} else {
-				(*result)->child = child;
-			}
-			break;
-		case 'n':
-			if (has_name) {
-				fprintf(stderr, "%s: %s(): Node already had a name, overriding", "Warning", __func__);
-			}
-
-		}
+		at = at->next;
 	}
 
 	return 0;
 }
+
+static inline int print_children(const struct node *first, const int spaces, const int layer) {
+	if (NULL == first) {
+		printf("%*sChildren:   -\n", spaces, "");
+		return 0;
+	}
+
+	printf("%*sChildren:\n", spaces, "");
+	return print_layer(first, layer + 1);
+}
+
+int print_layer(const struct node *first, const int layer) {
+	static const int spaces_per_layer = 4;
+	const int spaces = layer * spaces_per_layer;
+
+	struct node *at = (struct node *)first;
+	while(NULL != at) {
+		printf("%*sNode name:  %s\n", spaces, "", at->name ? at->name : "-");
+		print_attributes(at->attr, spaces);
+		print_children(at->child, spaces, layer);
+		if (NULL != at->next) {
+			printf("\n");
+		}
+		at = at->next;
+	}	
+	return 0;
+}
+

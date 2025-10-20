@@ -133,6 +133,12 @@ void free_attr(struct attr *this) {
 	if (NULL == this) {
 		return;
 	}
+	if (NULL != this->name) {
+		free(this->name);
+	}
+	if (NULL != this->value) {
+		free(this->value);
+	}
 	if (NULL != this->next) {
 		free_attr(this->next);
 	}
@@ -142,6 +148,9 @@ void free_attr(struct attr *this) {
 void free_node(struct node *this) {
 	if (NULL == this) {
 		return;
+	}
+	if (NULL != this->name) {
+		free(this->name);
 	}
 	if (NULL != this->next) {
 		free_node(this->next);
@@ -278,6 +287,94 @@ int push_child_to_node(struct node *this, const struct node *child) {
 	}
 
 	// On SUCCESS
+	return 0;
+}
+
+int move_next_to_attr_end(struct attr *this, struct attr *next) {
+	if (NULL == this) {
+		// perror
+		return -1;
+	}
+	if (NULL == next) {
+		// perror
+		return -1;
+	}
+
+	if (NULL == this->next) {
+		this->next = next;
+	} else {
+		struct attr *last = this->next;
+		while(NULL != last->next) {
+			last = last->next;
+		}
+		last->next = next;
+	}
+	return 0;
+}
+
+int move_attr_to_node_end(struct node *this, struct attr *attr) {
+	if (NULL == this) {
+		// TODO perror
+		return -1;
+	}
+	if (NULL == attr) {
+		// TODO perror
+		return -1;
+	}
+
+	if (NULL == this->attr) {
+		this->attr = attr;
+	} else {
+		struct attr *last = this->attr;
+		while(NULL != last->next) {
+			last = last->next;
+		}
+		last->next = attr;
+	}
+	return 0;
+}
+
+int move_next_to_node_end(struct node *this, struct node *next) {
+	if (NULL == this) {
+		// perror
+		return -1;
+	}
+	if (NULL == next) {
+		// perror
+		return -1;
+	}
+
+	if (NULL == this->next) {
+		this->next = next;
+	} else {
+		struct node *last = this->next;
+		while(NULL != last->next) {
+			last = last->next;
+		}
+		last->next = next;
+	}
+	return 0;
+}
+
+int move_child_to_node_end(struct node *this, struct node *child) {
+	if (NULL == this) {
+		// TODO perror
+		return -1;
+	}
+	if (NULL == child) {
+		// TODO perror
+		return -1;
+	}
+
+	if (NULL == this->child) {
+		this->child = child;
+	} else {
+		struct node *last = this->child;
+		while(NULL != last->next) {
+			last = last->next;
+		}
+		last->next = child;
+	}
 	return 0;
 }
 

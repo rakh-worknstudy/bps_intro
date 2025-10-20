@@ -14,7 +14,7 @@
 char *init_str_from_str(const char *src, const size_t lmax);
 
 
-struct node *parse_file(const char *filename);
+int parse_file(const char *filename, struct node *head);
 
 #endif  // PARSER_H__
 

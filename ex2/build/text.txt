@@ -1,0 +1,1 @@
+ [node1 attr1="\"test attr name\""[child1] attr2=test]
