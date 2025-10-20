@@ -37,8 +37,8 @@ static inline int check_allowed(const char ch) {
 	return R_BAD;
 }
 
-static char read_attr(FILE *ofs, struct attr *attr);
-static int read_node(FILE *ofs, struct node *node);
+static char read_attr(FILE *ofs, struct attr *attr) __attribute__((nonnull));
+static char read_node(FILE *ofs, struct node *node) __attribute__((nonnull));
 
 char *init_str_from_str(const char *src, const size_t lmax) {
 	char *dst = NULL;
@@ -84,6 +84,7 @@ int parse_file(const char *filename, struct node *head) {
 	head->next = NULL;
 	head->child = NULL;
 
+	// !valgrind
 	struct node *node = NULL;
 	char ch;
 	while(EOF != (ch = fgetc(ofs))) {
@@ -95,13 +96,16 @@ int parse_file(const char *filename, struct node *head) {
 				fclose(ofs);
 				return -1;
 			}
+			// !valgrind
 			node->name = NULL;
 			node->attr = NULL;
 			node->next = NULL;
 			node->child = NULL;
 		}
 		if ('[' == ch) {
-			read_node(ofs, node);
+			if (EOF == read_node(ofs, node)) {
+				break;
+			}
 			if (node->name || node->attr || node->next || node->child) {
 				move_next_to_node_end(head, node);
 				node = NULL;
@@ -128,7 +132,7 @@ static inline char read_attr_name(FILE *ofs, char *name, size_t *len) {
 			}
 			break;
 		} else if (ch == ' ' || ch == '\t') {
-			if (0 != len) {
+			if (0 < *len) {
 				break;	// End of attr.name
 			}
 		} else if (R_OK == check_allowed(ch)) {
@@ -223,7 +227,7 @@ static char read_attr(FILE *ofs, struct attr *attr) {
 	char name[ATTR_NAME_LENGTH_MAX + 1];
 	char value[ATTR_VALUE_LENGTH_MAX + 1];
 
-	size_t len;
+	size_t len = 0;
 	char ch;
 
 	ch = read_attr_name(ofs, name, &len);
@@ -239,6 +243,9 @@ static char read_attr(FILE *ofs, struct attr *attr) {
 		ch = read_attr_name(ofs, name, &len);
 		if (0 < len) {
 			struct attr *_nattr = (struct attr *)malloc(sizeof(struct attr));
+			if (NULL == _nattr) {
+				return -1;
+			}
 			_nattr->name = init_str_from_str(name, ATTR_NAME_LENGTH_MAX);
 			move_next_to_attr_end(attr, _nattr);
 			attr = attr->next; // Предыдущий атрибут имел пустое value, пришел новый
@@ -251,7 +258,7 @@ static char read_attr(FILE *ofs, struct attr *attr) {
 		if (NULL == attr->name) {
 			fprintf(stderr, "%s: %s: Found \'=\' with empty attr.name\n", "Warning", __func__);
 		}
-		len = 0;;
+		len = 0;
 		ch = read_attr_value(ofs, value, &len);
 		if (0 < len) {
 			attr->value = init_str_from_str(value, ATTR_VALUE_LENGTH_MAX);
@@ -274,7 +281,6 @@ static char read_node_name(FILE *ofs, char *name, size_t *len) {
 			if (0 == *len) {
 				fprintf(stderr, "%s: %s: No node name given\n", "Warning", __func__);
 			}
-			// fprintf(stderr, "%s: %s: Node \"%s\" closed without getting any attributes\n", "Info", __func__, name);
 			break;
 		} else if ('[' == ch || ' ' == ch) {
 			break;
@@ -291,7 +297,7 @@ static char read_node_name(FILE *ofs, char *name, size_t *len) {
 	return ch;
 }
 
-static int read_node(FILE *ofs, struct node *node) {
+static char read_node(FILE *ofs, struct node *node) {
 	node->name = NULL;
 	node->attr = NULL;
 	node->next = NULL;
@@ -308,31 +314,36 @@ static int read_node(FILE *ofs, struct node *node) {
 			}
 		} else {
 			struct attr *_attr = (struct attr *)malloc(sizeof(struct attr));
+			if (NULL == _attr) {
+				return EOF;
+			}
+
 			result = read_attr(ofs, _attr);
-			if (NULL != _attr->name && NULL != _attr->value) {
+
+			if (NULL != _attr->name || NULL != _attr->value) {
 				move_attr_to_node_end(node, _attr);
 			} else {
 				free_attr(_attr);
 			}
 		}
+
 		if ('[' == result) {
 			struct node *_child = (struct node *)malloc(sizeof(struct node));
+			if (NULL == _child) {
+				return EOF;	
+			}
+
 			result = read_node(ofs, _child);
 			if (NULL != _child->name) {
 				move_child_to_node_end(node, _child);
 			} else {
 				free_node(_child);
 			}
-			if (']' == result) {
-				continue;
+			if (']' != result) {
+				break;
 			}
+		} else if (']' == result) {
 			break;
-		}
-		if (']' == result) {
-			break;
-		}
-		if (' ' == result) {
-			continue;
 		}
 	} while (EOF != result);
 
@@ -342,6 +353,6 @@ static int read_node(FILE *ofs, struct node *node) {
 	if (NULL == node->attr) {
 		fprintf(stderr, "%s: %s: Node \"%s\" closed without getting any attributes\n", "Info", __func__, node->name ? node->name : "");
 	}
-	return 0;
+	return result;
 }
 
